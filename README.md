@@ -2,7 +2,7 @@
 
 This SDK provides an authentication and authorization solution for programatically interacting with Bolt. It wraps the boto3 interface so project wide integration is as easy as refactoring `import boto3` to `import bolt as boto3`. 
 
-The package only effects the signing and routing protocol of the boto3 S3 client, so any non S3 clients created through this SDK will by un-affected by the wrapper.
+The package only effects the signing and routing protocol of the boto3 S3 client, so any non S3 clients created through this SDK will be un-affected by the wrapper.
 
 ## Prerequisites
 

@@ -23,6 +23,8 @@ from botocore.handlers import disable_signing as _disable_signing
 
 from boto3 import __author__
 from boto3 import __version__
+import urllib3
+import json
 
 
 # Override Session Class
@@ -31,21 +33,23 @@ class Session(_Session):
   def client(self, *args, **kwargs):
     if kwargs.get('service_name') == 's3' or 's3' in args:
       kwargs['config'] = self._merge_bolt_config(kwargs.get('config'))
-      bolt_url = kwargs.get('bolt_url')
 
-      if bolt_url != None:
-        del kwargs['bolt_url']
+      if kwargs.get('bolt_url') != None:
+        bolt_url = kwargs.get('bolt_url')
+      elif _environ.get('BOLT_URL') != None:
+        bolt_url = _environ.get('BOLT_URL')
+      else:
+        raise ValueError('Bolt URL could not be found.\nPlease pass in \'bolt_url\' as argument to s3 client, or expose env var BOLT_URL')
+
+      bolt_url = bolt_url.replace('{region}', self._get_region())
 
       # Use inner function to curry 'creds' and 'bolt_url' into callback
       creds = self.get_credentials().get_frozen_credentials()
       def inject_header(*inject_args, **inject_kwargs):
-        _bolt_url = bolt_url if bolt_url != None else _environ.get('BOLT_URL')
-        if _bolt_url == None:
-          raise ValueError('Bolt URL could not be found.\nPlease pass in \'bolt_url\' as argument to s3 client, or expose env var BOLT_URL')
 
         # Modify request URL to redirect to bolt
         prepared_request = inject_kwargs['request']
-        scheme, host, _, _, _ = urlsplit(_bolt_url)
+        scheme, host, _, _, _ = urlsplit(bolt_url)
         _, _, path, query, fragment = urlsplit(prepared_request.url)
         prepared_request.url = urlunsplit((scheme, host, path, query, fragment))
 
@@ -82,6 +86,19 @@ class Session(_Session):
         return client_config.merge(bolt_config)
       else:
         return bolt_config
+
+  def _get_region(self):
+      region = _environ.get('AWS_REGION')
+      if region is not None:
+        return region
+      else:
+          try:
+              http = urllib3.PoolManager(timeout=3.0)
+              r = http.request('GET', 'http://169.254.169.254/latest/dynamic/instance-identity/document', retries=2)
+              ec2_instance_id = json.loads(r.data.decode('utf-8'))
+              return ec2_instance_id['region']
+          except Exception as e:
+              raise e
   
 
 # The default Boto3 session; autoloaded when needed.
