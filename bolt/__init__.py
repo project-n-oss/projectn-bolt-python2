@@ -9,97 +9,92 @@
 # ANY KIND, either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
-import logging
-from urllib.parse import urlsplit 
-from urllib.parse import urlunsplit
-from os import environ as _environ
-
-from boto3 import Session as _Session 
-
-from botocore.config import Config as _Config
-from botocore.awsrequest import AWSRequest as _AWSRequest
-from botocore.auth import SigV4Auth as _SigV4Auth
-from botocore.handlers import disable_signing as _disable_signing
-
-from boto3 import __author__
-from boto3 import __version__
-import urllib3
 import json
+from os import environ as _environ
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
+
+import urllib3
+from boto3 import Session as _Session
+from botocore.auth import SigV4Auth as _SigV4Auth
+from botocore.awsrequest import AWSRequest as _AWSRequest
+from botocore.config import Config as _Config
 
 
 # Override Session Class
 class Session(_Session):
 
-  def client(self, *args, **kwargs):
-    if kwargs.get('service_name') == 's3' or 's3' in args:
-      kwargs['config'] = self._merge_bolt_config(kwargs.get('config'))
+    def client(self, *args, **kwargs):
+        if kwargs.get('service_name') == 's3' or 's3' in args:
+            kwargs['config'] = self._merge_bolt_config(kwargs.get('config'))
 
-      if kwargs.get('bolt_url') != None:
-        bolt_url = kwargs.get('bolt_url')
-      elif _environ.get('BOLT_URL') != None:
-        bolt_url = _environ.get('BOLT_URL')
-      else:
-        raise ValueError('Bolt URL could not be found.\nPlease pass in \'bolt_url\' as argument to s3 client, or expose env var BOLT_URL')
+            if kwargs.get('bolt_url') is not None:
+                bolt_url = kwargs.get('bolt_url')
+            elif _environ.get('BOLT_URL') is not None:
+                bolt_url = _environ.get('BOLT_URL')
+            else:
+                raise ValueError(
+                    'Bolt URL could not be found.\nPlease pass in \'bolt_url\' as argument to s3 client, or expose env var BOLT_URL')
 
-      bolt_url = bolt_url.replace('{region}', self._get_region())
+            bolt_url = bolt_url.replace('{region}', self._get_region())
 
-      # Use inner function to curry 'creds' and 'bolt_url' into callback
-      creds = self.get_credentials().get_frozen_credentials()
-      def inject_header(*inject_args, **inject_kwargs):
+            # Use inner function to curry 'creds' and 'bolt_url' into callback
+            creds = self.get_credentials().get_frozen_credentials()
 
-        # Modify request URL to redirect to bolt
-        prepared_request = inject_kwargs['request']
-        scheme, host, _, _, _ = urlsplit(bolt_url)
-        _, _, path, query, fragment = urlsplit(prepared_request.url)
-        prepared_request.url = urlunsplit((scheme, host, path, query, fragment))
+            def inject_header(*inject_args, **inject_kwargs):
 
-        # Sign a get-caller-identity request
-        request = _AWSRequest(
-          method='POST',
-          url='https://sts.amazonaws.com/',
-          data='Action=GetCallerIdentity&Version=2011-06-15',
-          params=None,
-          headers=None
+                # Modify request URL to redirect to bolt
+                prepared_request = inject_kwargs['request']
+                scheme, host, _, _, _ = urlsplit(bolt_url)
+                _, _, path, query, fragment = urlsplit(prepared_request.url)
+                prepared_request.url = urlunsplit((scheme, host, path, query, fragment))
+
+                # Sign a get-caller-identity request
+                request = _AWSRequest(
+                    method='POST',
+                    url='https://sts.amazonaws.com/',
+                    data='Action=GetCallerIdentity&Version=2011-06-15',
+                    params=None,
+                    headers=None
+                )
+                _SigV4Auth(creds, "sts", 'us-east-1').add_auth(request)
+
+                for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token"]:
+                    if request.headers.get(key):
+                        prepared_request.headers[key] = request.headers[key]
+
+            self.events.register_last('before-send.s3', inject_header)
+
+            return self._session.create_client(*args, **kwargs)
+        else:
+            return self._session.create_client(*args, **kwargs)
+
+    def _merge_bolt_config(self, client_config: None or _Config) -> _Config:
+        # Override client config
+        bolt_config = _Config(
+            s3={
+                'addressing_style': 'path',
+                'signature_version': 's3v4'
+            }
         )
-        _SigV4Auth(creds, "sts", 'us-east-1').add_auth(request)
+        if client_config is not None:
+            return client_config.merge(bolt_config)
+        else:
+            return bolt_config
 
-        for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token"]:
-          if request.headers.get(key):
-            prepared_request.headers[key] = request.headers[key]
+    def _get_region(self):
+        region = _environ.get('AWS_REGION')
+        if region is not None:
+            return region
+        else:
+            try:
+                http = urllib3.PoolManager(timeout=3.0)
+                r = http.request('GET', 'http://169.254.169.254/latest/dynamic/instance-identity/document', retries=2)
+                ec2_instance_id = json.loads(r.data.decode('utf-8'))
+                return ec2_instance_id['region']
+            except Exception as e:
+                raise e
 
-
-      self.events.register_last('before-send.s3', inject_header)
-
-      return self._session.create_client(*args, **kwargs)
-    else:
-      return self._session.create_client(*args, **kwargs)
-
-  def _merge_bolt_config(self, client_config: None or _Config) -> _Config:
-      # Override client config
-      bolt_config = _Config(
-        s3={
-          'addressing_style': 'path',
-          'signature_version': 's3v4'
-        }
-      )
-      if client_config != None:
-        return client_config.merge(bolt_config)
-      else:
-        return bolt_config
-
-  def _get_region(self):
-      region = _environ.get('AWS_REGION')
-      if region is not None:
-        return region
-      else:
-          try:
-              http = urllib3.PoolManager(timeout=3.0)
-              r = http.request('GET', 'http://169.254.169.254/latest/dynamic/instance-identity/document', retries=2)
-              ec2_instance_id = json.loads(r.data.decode('utf-8'))
-              return ec2_instance_id['region']
-          except Exception as e:
-              raise e
-  
 
 # The default Boto3 session; autoloaded when needed.
 DEFAULT_SESSION = None
@@ -113,9 +108,6 @@ def setup_default_session(**kwargs):
     """
     global DEFAULT_SESSION
     DEFAULT_SESSION = Session(**kwargs)
-
-
-from boto3 import set_stream_logger
 
 
 def _get_default_session():
@@ -149,4 +141,3 @@ def resource(*args, **kwargs):
     return _get_default_session().resource(*args, **kwargs)
 
 
-from boto3 import NullHandler
