@@ -1,4 +1,4 @@
-# bolt-python-sdk
+# Bolt SDK
 
 This SDK provides an authentication and authorization solution for programatically interacting with Bolt. It wraps the
 boto3 interface so project wide integration is as easy as refactoring `import boto3` to `import bolt as boto3`.
@@ -11,7 +11,7 @@ The minimum supported version of Python is version 3.
 
 ## Installation
 
-`python3 -m pip install bolt-python-sdk`
+`python3 -m pip install bolt-sdk`
 
 ## Configuration
 
@@ -27,7 +27,7 @@ An example is:
 
 Where the `{region}` within the URL is a string literal placeholder that will be replaced by the python sdk
 
-*There are two ways to expose Bolt's URL to the SDK:*
+**There are two ways to expose Bolt's URL to the SDK:**
 
 1. With the ENV variable: `BOLT_URL`
 
@@ -44,7 +44,8 @@ boto3.client('s3', bolt_url='<url>')
 boto3.Session().client('s3', bolt_url='<url>')
 ```
 
-*There are two ways to expose Bolt's region to the SDK:*
+**There are two ways to expose Bolt's region to the SDK:**
+
 1. If running on an EC2 instance the SDK will by default use that EC2s region
 2. With the ENV variable: `AWS_REGION`.
 ```bash
