@@ -1,7 +1,6 @@
 # Bolt SDK
 
-This SDK provides an authentication and authorization solution for programatically interacting with Bolt. It wraps the
-boto3 interface so project wide integration is as easy as refactoring `import boto3` to `import bolt as boto3`.
+This SDK provides an authentication solution for programatically interacting with Bolt. It wraps the boto3 interface so project wide integration is as easy as refactoring `import boto3` to `import bolt as boto3`.
 
 The package affects the signing and routing protocol of the boto3 S3 client, therefore any non S3 clients created through this SDK will be un-affected by the wrapper.
 
@@ -27,21 +26,12 @@ An example is:
 
 Where the `{region}` within the URL is a string literal placeholder that will be replaced by the python sdk
 
-**There are two ways to expose Bolt's URL to the SDK:**
+**To expose Bolt's URL to the SDK:**
 
-1. With the ENV variable: `BOLT_URL`
+1. Declare the ENV variable: `BOLT_URL`
 
 ```bash
 export BOLT_URL="<url>"
-```
-
-2. By passing in the argument `bolt_url` to either of these functions. (Will override ENV variable)
-
-```python
-import bolt as boto3
-boto3.client('s3', bolt_url='<url>')
-# or
-boto3.Session().client('s3', bolt_url='<url>')
 ```
 
 **There are two ways to expose Bolt's region to the SDK:**
