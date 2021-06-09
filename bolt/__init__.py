@@ -28,13 +28,11 @@ class Session(_Session):
         if kwargs.get('service_name') == 's3' or 's3' in args:
             kwargs['config'] = self._merge_bolt_config(kwargs.get('config'))
 
-            if kwargs.get('bolt_url') is not None:
-                bolt_url = kwargs.get('bolt_url')
-            elif _environ.get('BOLT_URL') is not None:
+            if _environ.get('BOLT_URL') is not None:
                 bolt_url = _environ.get('BOLT_URL')
             else:
                 raise ValueError(
-                    'Bolt URL could not be found.\nPlease pass in \'bolt_url\' as argument to s3 client, or expose env var BOLT_URL')
+                    'Bolt URL could not be found.\nPlease expose env var BOLT_URL')
 
             bolt_url = bolt_url.replace('{region}', self._get_region())
 
@@ -69,7 +67,7 @@ class Session(_Session):
         else:
             return self._session.create_client(*args, **kwargs)
 
-    def _merge_bolt_config(self, client_config: None or _Config) -> _Config:
+    def _merge_bolt_config(self, client_config) :
         # Override client config
         bolt_config = _Config(
             s3={
