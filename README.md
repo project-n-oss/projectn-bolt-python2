@@ -14,7 +14,7 @@ The minimum supported version of Python is version 3.
 
 ## Configuration
 
-For the client to work it must have knowledge of Bolt's *region* and *url*
+For the client to work it must have knowledge of Bolt's *region* and *url*, as well as preferred *availability zone ID*
 
 The URL must be formatted as follows:
 
@@ -34,12 +34,13 @@ Where the `{region}` within the URL is a string literal placeholder that will be
 export BOLT_URL="<url>"
 ```
 
-**There are two ways to expose Bolt's region to the SDK:**
+**There are two ways to expose Bolt's location to the SDK:**
 
-1. If running on an EC2 instance the SDK will by default use that EC2s region
-2. With the ENV variable: `AWS_REGION`.
+1. If running on an EC2 instance the SDK will by default use that intance's region and zone ID
+2. With the ENV variables: `AWS_REGION` and `AWS_ZONE_ID`.
 ```bash
 export AWS_REGION='<region>'
+export AWS_ZONE_ID='<az-id>'
 ```
 
 ## Debugging
