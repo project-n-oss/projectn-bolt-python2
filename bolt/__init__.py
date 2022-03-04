@@ -34,7 +34,9 @@ class Session(_Session):
                 raise ValueError(
                     'Bolt URL could not be found.\nPlease expose env var BOLT_URL')
 
-            bolt_url = bolt_url.replace('{region}', self._get_region())
+            if "{region}" in bolt_url:
+                bolt_url = bolt_url.replace('{region}', self._get_region())
+            # bolt_url = bolt_url.replace('{region}', self._get_region())
 
             # Use inner function to curry 'creds' and 'bolt_url' into callback
             creds = self.get_credentials().get_frozen_credentials()
