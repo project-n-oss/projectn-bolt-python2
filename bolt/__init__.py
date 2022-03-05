@@ -10,9 +10,16 @@
 # language governing permissions and limitations under the License.
 
 import json
+import sched
+import time
+import datetime
+from functools import wraps
+from threading import Thread
+
 from collections import defaultdict
 from os import environ as _environ
 from random import choice
+from threading import Lock 
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -24,10 +31,36 @@ from botocore.config import Config as _Config
 from botocore.exceptions import UnknownEndpointError
 
 
+def async_function(func):
+    @wraps(func)
+    def async_func(*args, **kwargs):
+        func_hl = Thread(daemon=True, target=func, args=args, kwargs=kwargs)
+        func_hl.start()
+
+        return func_hl
+    return async_func
+
+
+def schedule(interval):
+    def decorator(func):
+        def periodic(scheduler, interval, action, actionargs=()):
+            scheduler.enter(interval, 1, periodic,
+                            (scheduler, interval, action, actionargs))
+            action(*actionargs)
+
+        @wraps(func)
+        def wrap(*args, **kwargs):
+            scheduler = sched.scheduler(time.time, time.sleep)
+            periodic(scheduler, interval, func)
+            scheduler.run()
+        return wrap
+    return decorator
+
 # Override Session Class
 class Session(_Session):
     # URL of the quicksilver service discovery endpoint
     _service_url = None
+    _mutex = Lock() 
 
     def client(self, *args, **kwargs):
         if kwargs.get('service_name') == 's3' or 's3' in args:
@@ -47,6 +80,13 @@ class Session(_Session):
 
             # refresh _bolt_endpoints
             self._get_bolt_endpoints()
+
+            @async_function
+            @schedule(10)
+            def update_endpoints():
+                self._get_bolt_endpoints()
+
+            update_endpoints()
 
             # Use inner function to curry 'creds' and 'bolt_url' into callback
             creds = self.get_credentials().get_frozen_credentials()
@@ -76,7 +116,9 @@ class Session(_Session):
 
             self.events.register_last('before-send.s3', inject_header)
 
-            return self._session.create_client(*args, **kwargs)
+            client = self._session.create_client(*args, **kwargs)
+
+            return client 
         else:
             return self._session.create_client(*args, **kwargs)
 
@@ -116,7 +158,8 @@ class Session(_Session):
             service_url = f'{self._service_url}/services/bolt?az={self._availability_zone_id}'
             resp = self._default_get(service_url)
             endpoint_map = json.loads(resp)
-            self._bolt_endpoints = defaultdict(list, endpoint_map)
+            with self._mutex:
+                self._bolt_endpoints = defaultdict(list, endpoint_map)
         except Exception as e:
             raise e
 
@@ -124,14 +167,17 @@ class Session(_Session):
         read_order = ["main_read_endpoints", "main_write_endpoints", "failover_read_endpoints", "failover_write_endpoints"]
         write_order = ["main_write_endpoints", "failover_write_endpoints"]
         preferred_order = read_order if method in {"GET", "HEAD"} else write_order
-        for endpoints in preferred_order:
-            if self._bolt_endpoints[endpoints]:
-                # use random choice for load balancing
-                return choice(self._bolt_endpoints[endpoints])
+
+        with self._mutex:
+            for endpoints in preferred_order:
+                if self._bolt_endpoints[endpoints]:
+                    # use random choice for load balancing
+                    return choice(self._bolt_endpoints[endpoints])
+
         # if we reach this point, no endpoints are available
         raise UnknownEndpointError(service_name='bolt', region_name=self._get_region())
 
-    def _default_get(url):
+    def _default_get(self, url):
         try:
             http = urllib3.PoolManager(timeout=3.0)
             resp = http.request('GET', url, retries=2)

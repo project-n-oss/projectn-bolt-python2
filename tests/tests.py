@@ -1,6 +1,6 @@
 import bolt as bolt3
 import boto3
-
+import time 
 
 def client_tests():
     # Test signing for s3
@@ -23,6 +23,11 @@ def client_tests():
         Type='MAX_HEALTH_CHECKS_BY_OWNER',
     )
 
+def test_refresh():
+    s3_bolt = bolt3.client('s3')
+
+    # let some refreshes happen
+    time.sleep(30)
 
 def session_tests():
     # Test signing for s3
@@ -51,3 +56,4 @@ def session_tests():
 
 client_tests()
 session_tests()
+# test_refresh()
