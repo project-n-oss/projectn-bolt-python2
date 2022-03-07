@@ -27,7 +27,7 @@ def test_refresh():
     s3_bolt = bolt3.client('s3')
 
     # let some refreshes happen
-    time.sleep(30)
+    time.sleep(90)
 
 def session_tests():
     # Test signing for s3

@@ -61,64 +61,63 @@ class Session(_Session):
     # URL of the quicksilver service discovery endpoint
     _service_url = None
     _mutex = Lock() 
+    def __init__(self):
+        super(Session, self).__init__()
+
+        if _environ.get('BOLT_URL') is not None:
+            service_url = _environ.get('BOLT_URL')
+        else:
+            raise ValueError(
+                'Bolt URL could not be found.\nPlease expose env var BOLT_URL')
+
+        if "{region}" in service_url:
+            service_url = service_url.replace('{region}', self._get_region())
+            
+        self._service_url = service_url
+        self._availability_zone_id = self._get_availability_zone_id()
+
+        # refresh _bolt_endpoints
+        self._get_bolt_endpoints()
+
+        @async_function
+        @schedule(30)
+        def update_endpoints():
+            print("updating endpoints", flush=True)
+            self._get_bolt_endpoints()
+
+        update_endpoints()
+
+        # Use inner function to curry 'creds' and 'bolt_url' into callback
+        creds = self.get_credentials().get_frozen_credentials()
+        def inject_header(*inject_args, **inject_kwargs):                
+            # Modify request URL to redirect to bolt
+            prepared_request = inject_kwargs['request']
+            # using same scheme as service url for now
+            scheme, _, _, _, _ = urlsplit(service_url)
+            host = self._select_bolt_endpoint(prepared_request.method)
+            _, _, path, query, fragment = urlsplit(prepared_request.url)
+            prepared_request.url = urlunsplit((scheme, host, path, query, fragment))
+
+            # Sign a get-caller-identity request
+            request = _AWSRequest(
+                method='POST',
+                url='https://sts.amazonaws.com/',
+                data='Action=GetCallerIdentity&Version=2011-06-15',
+                params=None,
+                headers=None
+            )
+            _SigV4Auth(creds, "sts", 'us-east-1').add_auth(request)
+
+            for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token"]:
+                if request.headers.get(key):
+                    prepared_request.headers[key] = request.headers[key]
+
+        self.events.register_last('before-send.s3', inject_header)
 
     def client(self, *args, **kwargs):
         if kwargs.get('service_name') == 's3' or 's3' in args:
             kwargs['config'] = self._merge_bolt_config(kwargs.get('config'))
-
-            if _environ.get('BOLT_URL') is not None:
-                service_url = _environ.get('BOLT_URL')
-            else:
-                raise ValueError(
-                    'Bolt URL could not be found.\nPlease expose env var BOLT_URL')
-
-            if "{region}" in service_url:
-                service_url = service_url.replace('{region}', self._get_region())
-                
-            self._service_url = service_url
-            self._availability_zone_id = self._get_availability_zone_id()
-
-            # refresh _bolt_endpoints
-            self._get_bolt_endpoints()
-
-            @async_function
-            @schedule(10)
-            def update_endpoints():
-                self._get_bolt_endpoints()
-
-            update_endpoints()
-
-            # Use inner function to curry 'creds' and 'bolt_url' into callback
-            creds = self.get_credentials().get_frozen_credentials()
-
-            def inject_header(*inject_args, **inject_kwargs):                
-                # Modify request URL to redirect to bolt
-                prepared_request = inject_kwargs['request']
-                # using same scheme as service url for now
-                scheme, _, _, _, _ = urlsplit(service_url)
-                host = self._select_bolt_endpoint(prepared_request.method)
-                _, _, path, query, fragment = urlsplit(prepared_request.url)
-                prepared_request.url = urlunsplit((scheme, host, path, query, fragment))
-
-                # Sign a get-caller-identity request
-                request = _AWSRequest(
-                    method='POST',
-                    url='https://sts.amazonaws.com/',
-                    data='Action=GetCallerIdentity&Version=2011-06-15',
-                    params=None,
-                    headers=None
-                )
-                _SigV4Auth(creds, "sts", 'us-east-1').add_auth(request)
-
-                for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token"]:
-                    if request.headers.get(key):
-                        prepared_request.headers[key] = request.headers[key]
-
-            self.events.register_last('before-send.s3', inject_header)
-
-            client = self._session.create_client(*args, **kwargs)
-
-            return client 
+            return self._session.create_client(*args, **kwargs)
         else:
             return self._session.create_client(*args, **kwargs)
 
