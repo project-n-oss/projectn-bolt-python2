@@ -26,17 +26,21 @@ An example is:
 
 Where the `{region}` within the URL is a string literal placeholder that will be replaced by the python sdk
 
-**To expose Bolt's URL to the SDK:**
+**There are two  ways to expose Bolt's URL to the SDK:**
 
-1. Declare the ENV variable: `BOLT_URL`
+1. Declare the ENV variables: `BOLT_URL` and `BOLT_HOSTNAME`
 
 ```bash
 export BOLT_URL="<url>"
+export BOLT_HOSTNAME="<url>"
 ```
-
+2. Declare the ENV variable: `BOLT_CUSTOM_DOMAIN`, which constructs Bolt URL and hostname based on default naming
+```bash
+export BOLT_CUSTOM_DOMAIN="example.com"
+```
 **There are two ways to expose Bolt's location to the SDK:**
 
-1. If running on an EC2 instance the SDK will by default use that intance's region and zone ID
+1. If running on an EC2 instance the SDK will by default use that instance's region and zone ID
 2. With the ENV variables: `AWS_REGION` and `AWS_ZONE_ID`.
 ```bash
 export AWS_REGION='<region>'

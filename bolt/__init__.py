@@ -10,9 +10,11 @@
 # language governing permissions and limitations under the License.
 
 import json
+
 from collections import defaultdict
 from os import environ as _environ
 from random import choice
+from threading import Lock 
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -23,59 +25,58 @@ from botocore.awsrequest import AWSRequest as _AWSRequest
 from botocore.config import Config as _Config
 from botocore.exceptions import UnknownEndpointError
 
+from .bolt_router import BoltRouter, get_region, get_availability_zone_id
 
 # Override Session Class
 class Session(_Session):
-    # URL of the quicksilver service discovery endpoint
-    _service_url = None
+    def __init__(self):
+        super(Session, self).__init__()
+
+        # Load all of the possibly configuration settings
+        region = _environ.get('BOLT_REGION')
+        if region is None:
+            try:
+                region = get_region()
+            except Exception as e:
+                pass
+        custom_domain = _environ.get('BOLT_CUSTOM_DOMAIN')
+        service_url = _environ.get('BOLT_URL')
+        bolt_hostname = _environ.get('BOLT_HOSTNAME')
+
+        if custom_domain is not None and region is not None:
+            scheme = 'https' 
+            service_url = f"quicksilver.{region}.{custom_domain}"
+            hostname = f"bolt.{region}.{custom_domain}"
+        elif service_url is not None and bolt_hostname is not None:
+            hostname = profile['bolt_hostname']
+
+            if "{region}" in hostname:
+                if region is None:
+                    raise ValueError(f'Bolt hostname {hostname} requires region to be specified')
+                hostname = hostname.replace('{region}', region)
+
+            scheme, service_url, _, _, _ = urlsplit(profile['bolt_url'])
+            if "{region}" in service_url:
+                if region is None:
+                    raise ValueError(f'Bolt URL {service_url} requires region to be specified')
+                service_url = service_url.replace('{region}', region)
+        else:
+            # must define either `custom_domain` and 'region' or `hostname` + `url`
+            raise ValueError(
+                'Bolt settings could not be found.\nPlease expose 1. BOLT_URL and BOLT_HOSTNAME or 2. BOLT_CUSTOM_DOMAIN and region')
+
+        az_id = None
+        try:
+            az_id = get_availability_zone_id()
+        except Exception as e:
+            pass
+
+        self.bolt_router = BoltRouter(scheme, service_url, hostname, az_id, update_interval=30)
+        self.events.register_last('before-send.s3', self.bolt_router.send)
 
     def client(self, *args, **kwargs):
         if kwargs.get('service_name') == 's3' or 's3' in args:
             kwargs['config'] = self._merge_bolt_config(kwargs.get('config'))
-
-            if _environ.get('BOLT_URL') is not None:
-                service_url = _environ.get('BOLT_URL')
-            else:
-                raise ValueError(
-                    'Bolt URL could not be found.\nPlease expose env var BOLT_URL')
-
-            if "{region}" in service_url:
-                service_url = service_url.replace('{region}', self._get_region())
-                
-            self._service_url = service_url
-            self._availability_zone_id = self._get_availability_zone_id()
-
-            # refresh _bolt_endpoints
-            self._get_bolt_endpoints()
-
-            # Use inner function to curry 'creds' and 'bolt_url' into callback
-            creds = self.get_credentials().get_frozen_credentials()
-
-            def inject_header(*inject_args, **inject_kwargs):                
-                # Modify request URL to redirect to bolt
-                prepared_request = inject_kwargs['request']
-                # using same scheme as service url for now
-                scheme, _, _, _, _ = urlsplit(service_url)
-                host = self._select_bolt_endpoint(prepared_request.method)
-                _, _, path, query, fragment = urlsplit(prepared_request.url)
-                prepared_request.url = urlunsplit((scheme, host, path, query, fragment))
-
-                # Sign a get-caller-identity request
-                request = _AWSRequest(
-                    method='POST',
-                    url='https://sts.amazonaws.com/',
-                    data='Action=GetCallerIdentity&Version=2011-06-15',
-                    params=None,
-                    headers=None
-                )
-                _SigV4Auth(creds, "sts", 'us-east-1').add_auth(request)
-
-                for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token"]:
-                    if request.headers.get(key):
-                        prepared_request.headers[key] = request.headers[key]
-
-            self.events.register_last('before-send.s3', inject_header)
-
             return self._session.create_client(*args, **kwargs)
         else:
             return self._session.create_client(*args, **kwargs)
@@ -92,52 +93,6 @@ class Session(_Session):
             return client_config.merge(bolt_config)
         else:
             return bolt_config
-
-    def _get_region(self):
-        region = self.region_name
-        if region is not None:
-            return region
-        region = _environ.get('AWS_REGION')
-        if region is not None:
-            return region
-        
-        return self._default_get('http://169.254.169.254/latest/meta-data/placement/region')
-
-
-    def _get_availability_zone_id(self):
-        zone = _environ.get('AWS_ZONE_ID')
-        if zone is not None:
-            return zone
-        
-        return self._default_get('http://169.254.169.254/latest/meta-data/placement/availability-zone-id')
-
-    def _get_bolt_endpoints(self):
-        try:
-            service_url = f'{self._service_url}/services/bolt?az={self._availability_zone_id}'
-            resp = self._default_get(service_url)
-            endpoint_map = json.loads(resp)
-            self._bolt_endpoints = defaultdict(list, endpoint_map)
-        except Exception as e:
-            raise e
-
-    def _select_bolt_endpoint(self, method):
-        read_order = ["main_read_endpoints", "main_write_endpoints", "failover_read_endpoints", "failover_write_endpoints"]
-        write_order = ["main_write_endpoints", "failover_write_endpoints"]
-        preferred_order = read_order if method in {"GET", "HEAD"} else write_order
-        for endpoints in preferred_order:
-            if self._bolt_endpoints[endpoints]:
-                # use random choice for load balancing
-                return choice(self._bolt_endpoints[endpoints])
-        # if we reach this point, no endpoints are available
-        raise UnknownEndpointError(service_name='bolt', region_name=self._get_region())
-
-    def _default_get(url):
-        try:
-            http = urllib3.PoolManager(timeout=3.0)
-            resp = http.request('GET', url, retries=2)
-            return resp.data.decode('utf-8')
-        except Exception as e:
-            raise e
 
 # The default Boto3 session; autoloaded when needed.
 DEFAULT_SESSION = None
