@@ -10,7 +10,9 @@ The minimum supported version of Python is version 3.
 
 ## Installation
 
-`python3 -m pip install bolt-sdk`
+```git clone git@github.com:project-n-oss/projectn-bolt-python.git
+cp -r bolt/ /usr/lib/python3.7/site-packages/
+```
 
 ## Configuration
 
