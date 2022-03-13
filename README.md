@@ -10,9 +10,11 @@ The minimum supported version of Python is version 3.
 
 ## Installation
 
-```git clone git@github.com:project-n-oss/projectn-bolt-python.git
+```git clone git@github.com:project-n-oss/projectn-bolt-python.git```
 
-cp -r bolt/ /usr/lib/python3.7/site-packages/```
+Copy the module to the appropriate location based in your Python version. For example,
+
+```cp -r bolt/ /usr/lib/python3.7/site-packages/```
 
 ## Configuration
 
