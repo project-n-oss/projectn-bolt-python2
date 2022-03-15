@@ -10,19 +10,10 @@ def client_tests():
     lboto = s3_boto.list_buckets()
     lbolt = s3_bolt.list_buckets()
 
-    print(lbolt)
     assert (lboto != lbolt)
 
     # Test that other services remain un-affected
-    route_boto = boto3.client('route53')
-    route_bolt = bolt3.client('route53')
-
-    route_boto.get_account_limit(
-        Type='MAX_HEALTH_CHECKS_BY_OWNER',
-    )
-    route_bolt.get_account_limit(
-        Type='MAX_HEALTH_CHECKS_BY_OWNER',
-    )
+    assert(boto3.client('sts').get_caller_identity()['Arn'] == bolt3.client('sts').get_caller_identity()['Arn'])
 
 def test_refresh():
     s3_bolt = bolt3.client('s3')
@@ -41,19 +32,10 @@ def session_tests():
     lboto = s3_boto.list_buckets()
     lbolt = s3_bolt.list_buckets()
 
-    print(lbolt)
     assert (lboto != lbolt)
 
     # Test that other services remain un-affected
-    route_boto = session_boto.client('route53')
-    route_bolt = session_bolt.client('route53')
-
-    route_boto.get_account_limit(
-        Type='MAX_HEALTH_CHECKS_BY_OWNER',
-    )
-    route_bolt.get_account_limit(
-        Type='MAX_HEALTH_CHECKS_BY_OWNER',
-    )
+    assert(session_boto.client('sts').get_caller_identity()['Arn'] == session_bolt.client('sts').get_caller_identity()['Arn'])
 
 
 client_tests()
