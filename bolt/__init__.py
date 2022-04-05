@@ -71,7 +71,7 @@ class Session(_Session):
         except Exception as e:
             pass
 
-        self.bolt_router = BoltRouter(scheme, service_url, hostname, az_id, update_interval=30)
+        self.bolt_router = BoltRouter(scheme, service_url, hostname, region, az_id, update_interval=30)
         self.events.register_last('before-send.s3', self.bolt_router.send)
 
     def client(self, *args, **kwargs):
