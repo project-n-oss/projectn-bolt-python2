@@ -188,6 +188,7 @@ class BoltRouter:
 
         prepared_request.url = urlunsplit((self._scheme, host, path, query, fragment))
 
+        # TODO Fix handling requests without bucket names (like list)
         source_bucket = path.split('/')[1]
 
         # Construct the HEAD request that would be sent out by Bolt for authentication

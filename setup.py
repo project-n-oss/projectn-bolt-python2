@@ -12,7 +12,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name='bolt-sdk',
     packages=setuptools.find_packages(),
-    version='2.0.3',
+    version='2.0.4',
     description='Bolt Python SDK',
     long_description=long_description,
     long_description_content_type='text/markdown',
