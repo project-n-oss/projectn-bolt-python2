@@ -166,7 +166,7 @@ class BoltRouter:
 
         self._get_endpoints()
 
-        self._auth = BoltSigV4Auth(get_session().get_credentials().get_frozen_credentials(), "sts", 'us-east-1')
+        self._auth = BoltSigV4Auth(get_session().get_credentials().get_frozen_credentials(), "s3", region)
         # Each client uses a random 4-char long prefix to randomize the S3 path used for auth lookups
         self._prefix = ''.join(random.choice(string.ascii_uppercase  + string.ascii_lowercase + string.digits) for _ in range(4))
 
@@ -205,7 +205,7 @@ class BoltRouter:
         request.headers['X-Amz-Content-Sha256'] = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
         self._auth.add_auth(request)
 
-        for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token"]:
+        for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token", "X-Amz-Content-Sha256"]:
           if request.headers.get(key):
             prepared_request.headers[key] = request.headers[key]
         prepared_request.headers['X-Bolt-Auth-Prefix'] = self._prefix
