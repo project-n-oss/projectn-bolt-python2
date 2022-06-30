@@ -16,7 +16,7 @@ python3 -m pip install bolt-sdk
 
 ## Configuration
 
-For the client to work it must have knowledge of Bolt's *service discovery url* (`BOLT_URL`) and Bolt's *server hostname* (`BOLT_HOSTNAME`)
+For the client to work it must have knowledge of Bolt's *service discovery url* (`BOLT_URL`)
 These are parameterized by the *region* of Bolt's deployment. A preferred *availability zone ID* can also be provided for AZ-aware routing.
 
 **There are two  ways to expose Bolt's URL to the SDK:**
@@ -25,7 +25,7 @@ These are parameterized by the *region* of Bolt's deployment. A preferred *avail
 export BOLT_CUSTOM_DOMAIN="example.com"
 ```
 
-2. Directly declare the ENV variables: `BOLT_URL` and `BOLT_HOSTNAME`
+2. Directly declare the ENV variables: `BOLT_URL`
 `BOLT_URL` must be formatted as follows:
 
 `https://<subdomain>{region}<domain>`
@@ -38,7 +38,6 @@ Where the `{region}` within the URL is a string literal placeholder that will be
 
 ```bash
 export BOLT_URL="<url>"
-export BOLT_HOSTNAME="<url>"
 ```
 
 **There are two ways to expose Bolt's region/preferred availability zone to the SDK:**
