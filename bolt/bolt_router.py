@@ -92,7 +92,9 @@ class BoltSession(URLLib3Session):
     def send(self, request):
         request.headers['Host'] = self._bolt_hostname
         for key in request.headers.keys():
-            request.headers[key] = str(request.headers[key])
+            if key == "Expect":
+                continue
+            request.headers[key] = request.headers[key]
         return super().send(request)
 
 
