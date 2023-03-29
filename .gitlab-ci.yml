@@ -23,7 +23,18 @@ verify3:
     - python3 setup.py sdist bdist_wheel
     - twine check dist/*
 
-package:
+package2:
+  stage: package
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "python27"'
+  script:
+    - python -m pip install twine setuptools wheel
+    - python setup.py sdist bdist_wheel
+    - twine check dist/*
+    - echo -e "[distutils]\nindex-servers = pypi\n\n[pypi]\nusername = __token__\npassword = ${PYPI_API_TOKEN}\n" >> ~/.pypirc
+    - twine upload --verbose dist/*
+
+package3:
   stage: package
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
@@ -32,5 +43,5 @@ package:
     - python3 setup.py sdist bdist_wheel
     - twine check dist/*
     - echo -e "[distutils]\nindex-servers = pypi\n\n[pypi]\nusername = __token__\npassword = ${PYPI_API_TOKEN}\n" >> ~/.pypirc
-    - python3 -m twine upload --verbose dist/*
-    - python2 -m twine upload --verbose dist/*
+    - twine upload --verbose dist/*
+
