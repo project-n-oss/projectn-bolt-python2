@@ -39,7 +39,7 @@ package3:
   image: python:latest
   stage: package
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH != "master"'
   script:
     - python3 -m pip install twine setuptools wheel
     - python3 setup.py sdist bdist_wheel
