@@ -10,10 +10,9 @@ verify:
   script:
     - python3 -m pip install twine setuptools wheel
     - python3 setup.py sdist bdist_wheel
-    - pyhton3 -m twine check dist/*
     - python2 -m pip install twine setuptools wheel
     - python2 setup.py sdist bdist_wheel
-    - pyhton2 -m twine check dist/*
+    - twine check dist/*
 
 package:
   stage: package
