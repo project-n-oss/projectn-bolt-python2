@@ -1,18 +1,22 @@
 #!/usr/bin/env python
 import setuptools
 from setuptools import setup
+import io
 
 requires = ['boto3', 'botocore']
-python_requires = '>=3'
+python_requires = '>=2.7'
 
 
-with open("README.md", "r", encoding="utf-8") as fh:
+# with open("README.md", "r", encoding="utf-8") as fh:
+#     long_description = fh.read()
+
+with io.open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
     name='bolt-sdk',
     packages=setuptools.find_packages(),
-    version='2.1.6',
+    version='2.1.5',
     description='Bolt Python SDK',
     long_description=long_description,
     long_description_content_type='text/markdown',
