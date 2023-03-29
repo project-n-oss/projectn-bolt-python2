@@ -24,6 +24,7 @@ verify3:
     - twine check dist/*
 
 package2:
+  image: python:2.7.16-alpine3.8
   stage: package
   rules:
     - if: '$CI_COMMIT_BRANCH == "python27"'
@@ -35,6 +36,7 @@ package2:
     - twine upload --verbose dist/*
 
 package3:
+  image: python:latest
   stage: package
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
