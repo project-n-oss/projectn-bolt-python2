@@ -14,16 +14,20 @@ import json
 from collections import defaultdict
 from os import environ as _environ
 from random import choice
-from threading import Lock 
-from urllib.parse import urlsplit
-from urllib.parse import urlunsplit
-
+from threading import Lock
 import urllib3
 from boto3 import Session as _Session
 from botocore.auth import SigV4Auth as _SigV4Auth
 from botocore.awsrequest import AWSRequest as _AWSRequest
 from botocore.config import Config as _Config
 from botocore.exceptions import UnknownEndpointError
+
+try:
+    from urllib.parse import urlsplit
+    from urllib.parse import urlunsplit
+except ImportError:
+    from urlparse import urlsplit
+    from urlparse import urlunsplit
 
 from .bolt_router import BoltRouter, get_region, get_availability_zone_id
 
@@ -46,13 +50,13 @@ class Session(_Session):
 
         if custom_domain is not None and region is not None:
             scheme = 'https' 
-            service_url = f"quicksilver.{region}.{custom_domain}"
-            hostname = f"bolt.{region}.{custom_domain}"
+            service_url = "quicksilver.{}.{}".format(region, custom_domain)
+            hostname = "bolt.{}.{}".format(region, custom_domain)
         elif service_url is not None:
             scheme, service_url, _, _, _ = urlsplit(service_url)
             if "{region}" in service_url:
                 if region is None:
-                    raise ValueError(f'Bolt URL {service_url} requires region to be specified')
+                    raise ValueError('Bolt URL {} requires region to be specified'.format(service_url))
                 service_url = service_url.replace('{region}', region)
         else:
             # must define either `custom_domain` or `url`

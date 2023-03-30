@@ -2,7 +2,6 @@ from collections import defaultdict
 import json
 from os import environ
 from random import choice
-from urllib.parse import urlsplit, urlunsplit
 from urllib3 import PoolManager
 from threading import Lock
 
@@ -15,6 +14,12 @@ import string
 from functools import wraps
 from threading import Thread
 
+try:
+    from urllib.parse import urlsplit
+    from urllib.parse import urlunsplit
+except ImportError:
+    from urlparse import urlsplit
+    from urlparse import urlunsplit
 
 from botocore.auth import SigV4Auth, SIGV4_TIMESTAMP, logger
 from botocore.awsrequest import AWSRequest
@@ -51,7 +56,12 @@ def _default_get(url):
 def async_function(func):
     @wraps(func)
     def async_func(*args, **kwargs):
-        func_hl = Thread(daemon=True, target=func, args=args, kwargs=kwargs)
+        if sys.version_info[0] == 2:
+            func_hl = Thread(target=func, args=args, kwargs=kwargs)
+            func_hl.daemon = True
+        else:
+            func_hl = Thread(daemon=True, target=func, args=args, kwargs=kwargs)
+
         func_hl.start()
 
         return func_hl
@@ -80,13 +90,13 @@ class BoltSession(URLLib3Session):
     """
     def __init__(self, bolt_hostname, **kwargs):
         self._bolt_hostname = bolt_hostname
-        super().__init__(**kwargs)
+        super(BoltSession, self).__init__(**kwargs)
 
 
     def _get_pool_manager_kwargs(self, **extra_kwargs):
         # Add 'server_hostname' arg to use for SSL validation
         extra_kwargs.update(server_hostname=self._bolt_hostname)
-        return super()._get_pool_manager_kwargs(**extra_kwargs)
+        return super(BoltSession, self)._get_pool_manager_kwargs(**extra_kwargs)
 
 
     def send(self, request):
@@ -95,7 +105,7 @@ class BoltSession(URLLib3Session):
             if key == "Expect":
                 continue
             request.headers[key] = request.headers[key]
-        return super().send(request)
+        return super(BoltSession, self).send(request)
 
 
 def roundTime(dt=None, dateDelta=datetime.timedelta(minutes=1)):
@@ -111,10 +121,13 @@ def roundTime(dt=None, dateDelta=datetime.timedelta(minutes=1)):
     rounding = (seconds+roundTo/2) // roundTo * roundTo
     return dt + datetime.timedelta(0,rounding-seconds,-dt.microsecond)
 
+def _get_datatime_delta():
+    return datetime.timedelta(minutes=10)
+
 class BoltSigV4Auth(SigV4Auth):
-    def __init__(self, *args, bolt_timestamp_pin_duration = datetime.timedelta(minutes=10), **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__bolt_timestamp_pin_duration = bolt_timestamp_pin_duration
+    def __init__(self, *args, **kwargs):
+        super(BoltSigV4Auth, self).__init__(*args, **kwargs)
+        self.__bolt_timestamp_pin_duration = datetime.timedelta(minutes=10)
         self.__bolt_random_offset = datetime.timedelta(seconds=random.randint(0, self.__bolt_timestamp_pin_duration.total_seconds()))
 
     # From https://github.com/boto/botocore/blob/e720eefba94963f373b3ff7c888a89bea06cd4a1/botocore/auth.py
@@ -182,7 +195,9 @@ class BoltRouter:
                 try: 
                     self._get_endpoints()
                 except Exception as e:
-                    print(e, file=sys.stderr, flush=True)
+                    sys.stderr.write(str(e))
+                    sys.stderr.flush()
+                    print(e)
             update_endpoints()
 
     def send(self, *args, **kwargs):
@@ -226,7 +241,7 @@ class BoltRouter:
 
     def _get_endpoints(self):
         try:
-            service_url = f'{self._service_url}/services/bolt?az={self._az_id}'
+            service_url = '{}/services/bolt?az={}'.format(self._service_url, self._az_id)
             resp = _default_get(service_url)
             endpoint_map = json.loads(resp)
             with self._mutex: 
