@@ -27,7 +27,7 @@ setup(
     author='Project N',
     install_requires=requires,
     classifiers=[
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: {}".format(sys.version_info[0]),
         "Operating System :: OS Independent",
         "License :: OSI Approved :: Apache Software License",
         "Topic :: Software Development :: Libraries",
