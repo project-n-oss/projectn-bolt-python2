@@ -13,13 +13,8 @@ import datetime
 import string
 from functools import wraps
 from threading import Thread
-
-try:
-    from urllib.parse import urlsplit
-    from urllib.parse import urlunsplit
-except ImportError:
-    from urlparse import urlsplit
-    from urlparse import urlunsplit
+from urlparse import urlsplit
+from urlparse import urlunsplit
 
 from botocore.auth import SigV4Auth, SIGV4_TIMESTAMP, logger
 from botocore.awsrequest import AWSRequest

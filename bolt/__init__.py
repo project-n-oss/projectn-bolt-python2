@@ -21,13 +21,8 @@ from botocore.auth import SigV4Auth as _SigV4Auth
 from botocore.awsrequest import AWSRequest as _AWSRequest
 from botocore.config import Config as _Config
 from botocore.exceptions import UnknownEndpointError
-
-try:
-    from urllib.parse import urlsplit
-    from urllib.parse import urlunsplit
-except ImportError:
-    from urlparse import urlsplit
-    from urlparse import urlunsplit
+from urlparse import urlsplit
+from urlparse import urlunsplit
 
 from .bolt_router import BoltRouter, get_region, get_availability_zone_id
 

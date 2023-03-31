@@ -1,7 +1,7 @@
 stages:
   - package
 
-verify2:
+verify:
   image: python:2.7.16-alpine3.8
   stage: package
   rules:
@@ -12,18 +12,7 @@ verify2:
     - python setup.py sdist bdist_wheel
     - twine check dist/*
 
-verify3:
-  image: python:latest
-  stage: package
-  rules:
-    - if: '$CI_COMMIT_BRANCH != "master"'
-  script:
-    - python3 --version
-    - python3 -m pip install twine setuptools wheel
-    - python3 setup.py sdist bdist_wheel
-    - twine check dist/*
-
-package2:
+package:
   image: python:2.7.16-alpine3.8
   stage: package
   rules:
@@ -34,16 +23,3 @@ package2:
     - twine check dist/*
     - echo -e "[distutils]\nindex-servers = pypi\n\n[pypi]\nusername = __token__\npassword = ${PYPI_API_TOKEN}\n" >> ~/.pypirc
     - twine upload --verbose dist/*
-
-package3:
-  image: python:latest
-  stage: package
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-  script:
-    - python3 -m pip install twine setuptools wheel
-    - python3 setup.py sdist bdist_wheel
-    - twine check dist/*
-    - echo -e "[distutils]\nindex-servers = pypi\n\n[pypi]\nusername = __token__\npassword = ${PYPI_API_TOKEN}\n" >> ~/.pypirc
-    - twine upload --verbose dist/*
-
