@@ -6,12 +6,13 @@ The package affects the signing and routing protocol of the boto3 S3 client, the
 
 ## Prerequisites
 
-The minimum supported version of Python is version 3.
+The minimum supported version of Python is version 2.
 
 ## Installation
 
 ```bash
-python3 -m pip install bolt-sdk
+python -m pip install boto3==1.17.112
+python -m pip install bolt-sdk==1.0.0
 ```
 
 ## Configuration
@@ -56,8 +57,3 @@ Import the default logger and set its level to DEBUG
 `logging.getLogger().setLevel(logging.DEBUG)`
 
 
-## Tests
-Basic integration tests are provided for the modified Session/Client interfaces. They must be run in an environment with a properly configured Bolt deployment accessible.
-```bash
-python3 tests/tests.py
-```
