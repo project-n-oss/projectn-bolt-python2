@@ -10,7 +10,7 @@ with io.open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name='bolt-sdk',
+    name='bolt-sdk-py2',
     packages=setuptools.find_packages(),
     version='1.0.0',
     description='Bolt Python SDK',
