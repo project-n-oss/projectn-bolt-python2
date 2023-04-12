@@ -36,13 +36,13 @@ export AWS_ZONE_ID='<az-id>'
 ```
 ## Example usage
 
-```shell
+```python
 import bolt
 # Create an S3 client
-s3_client = bolt.client('s3')
+s3_client = bolt.client("s3")
 # Define a function that performs the put_object operation
-s3_client.put_object(Body='data', Bucket="BUCKET_NAME", Key="key")
-obj = s3_client.get_object(Bucket='BUCKET_NAME', Key='key')
+s3_client.put_object(Body="data", Bucket="BUCKET_NAME", Key="key")
+obj = s3_client.get_object(Bucket="BUCKET_NAME", Key="key")
 body = obj["Body"].read()
 ```
 ## Debugging
