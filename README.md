@@ -11,8 +11,7 @@ The minimum supported version of Python is version 2.
 ## Installation
 
 ```bash
-python -m pip install boto3==1.17.112
-python -m pip install bolt-sdk==1.0.0
+python -m pip install bolt-sdk-py2
 ```
 
 ## Configuration
@@ -20,26 +19,12 @@ python -m pip install bolt-sdk==1.0.0
 For the client to work it must have knowledge of Bolt's *service discovery url* (`BOLT_URL`)
 These are parameterized by the *region* of Bolt's deployment. A preferred *availability zone ID* can also be provided for AZ-aware routing.
 
-**There are two  ways to expose Bolt's URL to the SDK:**
+**Expose Bolt's URL to the SDK:**
 1. Declare the ENV variable: `BOLT_CUSTOM_DOMAIN`, which constructs Bolt URL and hostname based on default naming
 ```bash
 export BOLT_CUSTOM_DOMAIN="example.com"
 ```
 
-2. Directly declare the ENV variables: `BOLT_URL`
-`BOLT_URL` must be formatted as follows:
-
-`https://<subdomain>{region}<domain>`
-
-An example is:
-
-`https://bolt.{region}.google.com`
-
-Where the `{region}` within the URL is a string literal placeholder that will be replaced by the python sdk
-
-```bash
-export BOLT_URL="<url>"
-```
 
 **There are two ways to expose Bolt's region/preferred availability zone to the SDK:**
 
@@ -49,7 +34,17 @@ export BOLT_URL="<url>"
 export AWS_REGION='<region>'
 export AWS_ZONE_ID='<az-id>'
 ```
+## Example usage
 
+```shell
+import bolt
+# Create an S3 client
+s3_client = bolt.client('s3')
+# Define a function that performs the put_object operation
+s3_client.put_object(Body='data', Bucket="BUCKET_NAME", Key="key")
+obj = s3_client.get_object(Bucket='BUCKET_NAME', Key='key')
+body = obj["Body"].read()
+```
 ## Debugging
 
 Import the default logger and set its level to DEBUG
