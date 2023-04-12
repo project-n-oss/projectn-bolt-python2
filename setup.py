@@ -10,9 +10,9 @@ with io.open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name='bolt-sdk',
+    name='bolt-sdk-py2',
     packages=setuptools.find_packages(),
-    version='1.0.0',
+    version='1.0.1',
     description='Bolt Python SDK',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -25,5 +25,5 @@ setup(
         "Topic :: Software Development :: Libraries",
     ],
     python_requires=python_requires,
-    url="https://gitlab.com/projectn-oss/projectn-bolt-python",
+    url="https://github.com/projectn-oss/projectn-bolt-python2",
 )
