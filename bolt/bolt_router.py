@@ -276,11 +276,11 @@ class BoltRouter:
         try: 
           bolt_response =  BoltSession(self._hostname).send(prepared_request)
           if 400 <= bolt_response.status_code < 500:
-              logger.info("bolt request failed - 4xx - falling back to aws", extra={"status_code": bolt_response.status_code})
+              logger.debug("bolt request failed - 4xx - falling back to aws", extra={"status_code": bolt_response.status_code})
               return URLLib3Session().send(incoming_request)
           return bolt_response
         except Exception as e:
-          logger.info("bolt request failed - exception - falling back to aws", extra={"exception": e})
+          logger.debug("bolt request failed - exception - falling back to aws", extra={"exception": e})
           return URLLib3Session().send(incoming_request)
 
     def _get_endpoints(self):
