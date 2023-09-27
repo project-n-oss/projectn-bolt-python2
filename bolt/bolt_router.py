@@ -22,6 +22,9 @@ from botocore.exceptions import UnknownEndpointError
 from botocore.session import get_session
 from botocore.httpsession import URLLib3Session
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 # throws Exception if not found
 def get_region():
     region = environ.get('AWS_REGION')
@@ -94,15 +97,30 @@ class BoltSession(URLLib3Session):
         return super(BoltSession, self)._get_pool_manager_kwargs(**extra_kwargs)
 
 
-    def send(self, request):
+    def send(self, request, failover_request):
+        # start: do bolt request
         request.headers['Host'] = self._bolt_hostname
         for key in request.headers.keys():
             if key == "Expect":
                 continue
             request.headers[key] = request.headers[key]
-        return super(BoltSession, self).send(request)
 
+        request.headers["x-set-response-status-code"] = "405"
+        bolt_response = super(BoltSession, self).send(request)
 
+        if bolt_response.status_code >= 200 and bolt_response.status_code < 300:
+            return bolt_response
+        # end: do bolt request
+
+        # start: do failover request
+        if 400 <= bolt_response.status_code < 500:
+            print("failing over to aws")
+            s3_response = super(BoltSession, self).send(failover_request)
+            print("response code: ", s3_response.status_code)
+            return s3_response
+        # end: do failover request
+
+        
 def roundTime(dt=None, dateDelta=datetime.timedelta(minutes=1)):
     """Round a datetime object to a multiple of a timedelta
     dt : datetime.datetime object, default now.
@@ -221,7 +239,6 @@ class BoltRouter:
         # https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
         request.headers['X-Amz-Content-Sha256'] = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
-
         self._auth.add_auth(request)
 
         for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token", "X-Amz-Content-Sha256"]:
@@ -229,10 +246,43 @@ class BoltRouter:
             prepared_request.headers[key] = request.headers[key]
         prepared_request.headers['X-Bolt-Auth-Prefix'] = self._prefix
 
+        print("prepared request body: ", str(prepared_request.body))
+        print("prepared request url: ", prepared_request.url)
+        print("prepared request headers: ", prepared_request.headers)
+
+        print("path: ", path)
+        path_without_bucket = "".join(path.split('/')[2:])
+        print("path without bucket: ", path_without_bucket)
+
+        # virtual hosted style
+        # new_url =  "https://{}.s3.{}.amazonaws.com/{}".format(source_bucket, self._region, path_without_bucket)
+
+        # pathstyle
+        new_url = "https://s3.{}.amazonaws.com{}".format(self._region, path)
+
+        print("new url: ", new_url)
+        failover_request = AWSRequest(
+            method=prepared_request.method,
+            url=new_url,
+            data=prepared_request.body,
+            params=None,
+            headers=None
+        )
+        self._auth.add_auth(failover_request)
+        
+        prepared_failover_request = failover_request.prepare()
+        prepared_failover_request.headers["Host"] = "https://{}.s3.{}.amazonaws.com".format(source_bucket, self._region)
+
+        print("prepared failover request body: ", str(prepared_failover_request.body))
+        print("prepared failover request url: ", prepared_failover_request.url)
+        print("prepared failover request headers: ", prepared_failover_request.headers)
+        
+
         # send this request with our custom session options
         # if an AWSResponse is returned directly from a `before-send` event handler function, 
         # botocore will use that as the response without making its own request.
-        return BoltSession(self._hostname).send(prepared_request)
+        ssl_verify = True  # disable if running locally
+        return BoltSession(self._hostname, ssl_verify=False).send(prepared_request, prepared_failover_request)
 
     def _get_endpoints(self):
         try:
@@ -242,7 +292,9 @@ class BoltRouter:
             with self._mutex: 
                 self._bolt_endpoints = defaultdict(list, endpoint_map)
         except Exception as e:
-            raise e
+            # pass
+            self._bolt_endpoints = defaultdict(list)
+            # raise e
 
     def _select_endpoint(self, method):
         preferred_order = self.PREFERRED_READ_ENDPOINT_ORDER if method in {"GET", "HEAD"} else self.PREFERRED_WRITE_ENDPOINT_ORDER
@@ -253,5 +305,5 @@ class BoltRouter:
                     # use random choice for load balancing
                     return choice(self._bolt_endpoints[endpoints])
         # if we reach this point, no endpoints are available
+        # return "localhost:8443"
         raise UnknownEndpointError(service_name='bolt', region_name=self._az_id)
-
