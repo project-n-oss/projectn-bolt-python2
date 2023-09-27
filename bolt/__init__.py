@@ -10,6 +10,7 @@
 # language governing permissions and limitations under the License.
 
 import json
+import sys
 
 from collections import defaultdict
 from os import environ as _environ
@@ -37,10 +38,11 @@ class Session(_Session):
             try:
                 region = get_region()
             except Exception as e:
-                pass
+                print("BOLT_REGION environment variable is not set, and could not be automatically determined.")
+                sys.exit(1)
+
         custom_domain = _environ.get('BOLT_CUSTOM_DOMAIN')
         service_url = _environ.get('BOLT_URL')
-        bolt_hostname = _environ.get('BOLT_HOSTNAME')
         hostname = None
 
         if custom_domain is not None and region is not None:
@@ -130,5 +132,3 @@ def resource(*args, **kwargs):
     See :py:meth:`boto3.session.Session.resource`.
     """
     return _get_default_session().resource(*args, **kwargs)
-
-
