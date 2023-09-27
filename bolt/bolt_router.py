@@ -5,12 +5,14 @@ from random import choice
 from urllib3 import PoolManager
 from threading import Lock
 
+import copy
 import random
 import sys 
 import sched
 import time
 import datetime
 import string
+import requests
 from functools import wraps
 from threading import Thread
 from urlparse import urlsplit
@@ -97,7 +99,7 @@ class BoltSession(URLLib3Session):
         return super(BoltSession, self)._get_pool_manager_kwargs(**extra_kwargs)
 
 
-    def send(self, request, failover_request):
+    def send(self, request):
         # start: do bolt request
         request.headers['Host'] = self._bolt_hostname
         for key in request.headers.keys():
@@ -106,19 +108,7 @@ class BoltSession(URLLib3Session):
             request.headers[key] = request.headers[key]
 
         request.headers["x-set-response-status-code"] = "405"
-        bolt_response = super(BoltSession, self).send(request)
-
-        if bolt_response.status_code >= 200 and bolt_response.status_code < 300:
-            return bolt_response
-        # end: do bolt request
-
-        # start: do failover request
-        if 400 <= bolt_response.status_code < 500:
-            print("failing over to aws")
-            s3_response = super(BoltSession, self).send(failover_request)
-            print("response code: ", s3_response.status_code)
-            return s3_response
-        # end: do failover request
+        return super(BoltSession, self).send(request)
 
         
 def roundTime(dt=None, dateDelta=datetime.timedelta(minutes=1)):
@@ -216,6 +206,9 @@ class BoltRouter:
     def send(self, *args, **kwargs):
         # Dispatches to the configured Bolt scheme and host.
         prepared_request = kwargs['request']
+        # print("incoming request")
+        # print(prepared_request)
+        incoming_request = copy.deepcopy(prepared_request)
         _, _, path, query, fragment = urlsplit(prepared_request.url)
         host = self._select_endpoint(prepared_request.method)
         if self._scheme == "http":
@@ -227,6 +220,7 @@ class BoltRouter:
         source_bucket = path.split('/')[1]
 
         # Construct the HEAD request that would be sent out by Bolt for authentication
+        # print("making a head request")
         request = AWSRequest(
           method='HEAD',
           url='https://s3.{}.amazonaws.com/{}/{}/auth'.format(self._region,source_bucket, self._prefix),
@@ -241,48 +235,66 @@ class BoltRouter:
 
         self._auth.add_auth(request)
 
+        # print("done making head request")
+
         for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token", "X-Amz-Content-Sha256"]:
           if request.headers.get(key):
             prepared_request.headers[key] = request.headers[key]
         prepared_request.headers['X-Bolt-Auth-Prefix'] = self._prefix
 
-        print("prepared request body: ", str(prepared_request.body))
-        print("prepared request url: ", prepared_request.url)
-        print("prepared request headers: ", prepared_request.headers)
+        # print("prepared request body: ", str(prepared_request.body))
+        # print("prepared request url: ", prepared_request.url)
+        # print("prepared request headers: ", prepared_request.headers)
 
-        print("path: ", path)
+        # print("path: ", path)
         path_without_bucket = "".join(path.split('/')[2:])
-        print("path without bucket: ", path_without_bucket)
+        # print("path without bucket: ", path_without_bucket)
+
+        # raw boto uses past style
+        # DEBUG:botocore.utils:Updating URI from https://s3.amazonaws.com/km-us-west-2/kote.txt to https://s3.us-west-2.amazonaws.com/km-us-west-2/kote.txt
 
         # virtual hosted style
-        new_url =  "https://{}.s3.{}.amazonaws.com/{}".format(source_bucket, self._region, path_without_bucket)
+        # new_url =  "https://{}.s3.{}.amazonaws.com/{}".format(source_bucket, self._region, path_without_bucket)
 
         # pathstyle
         # new_url = "https://s3.{}.amazonaws.com{}".format(self._region, path)
+        # new_url = "https://google.com"
+        # print("new url: ", new_url)
 
-        print("new url: ", new_url)
-        failover_request = AWSRequest(
-            method=prepared_request.method,
-            url=new_url,
-            data=prepared_request.body,
-            params=None,
-            headers=None
-        )
-        self._auth.add_auth(failover_request)
+        # resp = requests.get(new_url)
+        # print(resp.status_code)
+        # print(resp.text)
+
+        # failover_request = AWSRequest(
+        #     method=prepared_request.method,
+        #     url=new_url,
+        #     data="kote-from-code", # prepared_request.body,
+        #     params=None,
+        #     headers=None
+        # )
+        # self._auth.add_auth(failover_request)
         
-        prepared_failover_request = failover_request.prepare()
-        prepared_failover_request.headers["Host"] = "https://{}.s3.{}.amazonaws.com".format(source_bucket, self._region)
+        # prepared_failover_request = failover_request.prepare()
+        # prepared_failover_request.headers["Host"] = "https://{}.s3.{}.amazonaws.com".format(source_bucket, self._region)
+        # prepared_failover_request.headers["Host"] = "https://s3.{}.amazonaws.com".format(self._region)
 
-        print("prepared failover request body: ", str(prepared_failover_request.body))
-        print("prepared failover request url: ", prepared_failover_request.url)
-        print("prepared failover request headers: ", prepared_failover_request.headers)
+        # print("prepared failover request body: ", str(prepared_failover_request.body))
+        # print("prepared failover request url: ", prepared_failover_request.url)
+        # print("prepared failover request headers: ", prepared_failover_request.headers)
         
 
         # send this request with our custom session options
         # if an AWSResponse is returned directly from a `before-send` event handler function, 
         # botocore will use that as the response without making its own request.
-        ssl_verify = True  # disable if running locally
-        return BoltSession(self._hostname, verify=False).send(prepared_request, prepared_failover_request)
+        try: 
+          bolt_response =  BoltSession(self._hostname, verify=ssl_verify).send(prepared_request)
+          if 400 <= bolt_response.status_code < 500:
+              logger.debug("failing over to aws, bolt response code was 4xx", extra={"status_code": bolt_response.status_code})
+              return URLLib3Session().send(incoming_request)
+          return bolt_response
+        except Exception as e:
+          logger.debug("failing over to aws cause of exception", extra={"exception": e})
+          return URLLib3Session().send(incoming_request)
 
     def _get_endpoints(self):
         try:
@@ -305,5 +317,4 @@ class BoltRouter:
                     # use random choice for load balancing
                     return choice(self._bolt_endpoints[endpoints])
         # if we reach this point, no endpoints are available
-        # return "localhost:8443"
         raise UnknownEndpointError(service_name='bolt', region_name=self._az_id)

@@ -44,7 +44,7 @@ class Session(_Session):
         hostname = None
 
         if custom_domain is not None and region is not None:
-            scheme = 'https' 
+            scheme = 'https'
             service_url = "quicksilver.{}.{}".format(region, custom_domain)
             hostname = "bolt.{}.{}".format(region, custom_domain)
         elif service_url is not None:
