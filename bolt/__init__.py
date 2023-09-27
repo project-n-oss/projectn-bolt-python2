@@ -27,68 +27,76 @@ from urlparse import urlunsplit
 
 from .bolt_router import BoltRouter, get_region, get_availability_zone_id
 
+
 # Override Session Class
 class Session(_Session):
     def __init__(self):
         super(Session, self).__init__()
 
         # Load all of the possibly configuration settings
-        region = _environ.get('BOLT_REGION')
+        region = _environ.get("BOLT_REGION")
         if region is None:
             try:
                 region = get_region()
             except Exception as e:
-                print("BOLT_REGION environment variable is not set, and could not be automatically determined.")
+                print(
+                    "BOLT_REGION environment variable is not set, and could not be automatically determined."
+                )
                 sys.exit(1)
 
-        custom_domain = _environ.get('BOLT_CUSTOM_DOMAIN')
-        service_url = _environ.get('BOLT_URL')
+        custom_domain = _environ.get("BOLT_CUSTOM_DOMAIN")
+        service_url = _environ.get("BOLT_URL")
         hostname = None
 
         if custom_domain is not None and region is not None:
-            scheme = 'https'
+            scheme = "https"
             service_url = "quicksilver.{}.{}".format(region, custom_domain)
             hostname = "bolt.{}.{}".format(region, custom_domain)
         elif service_url is not None:
             scheme, service_url, _, _, _ = urlsplit(service_url)
             if "{region}" in service_url:
                 if region is None:
-                    raise ValueError('Bolt URL {} requires region to be specified'.format(service_url))
-                service_url = service_url.replace('{region}', region)
+                    raise ValueError(
+                        "Bolt URL {} requires region to be specified".format(
+                            service_url
+                        )
+                    )
+                service_url = service_url.replace("{region}", region)
         else:
             # must define either `custom_domain` or `url`
             raise ValueError(
-                'Bolt settings could not be found.\nPlease expose 1. BOLT_URL or 2. BOLT_CUSTOM_DOMAIN')
+                "Bolt settings could not be found.\nPlease expose 1. BOLT_URL or 2. BOLT_CUSTOM_DOMAIN"
+            )
 
-        az_id = _environ.get('BOLT_AZ_ID')
+        az_id = _environ.get("BOLT_AZ_ID")
         if az_id is None:
-          try:
-              az_id = get_availability_zone_id()
-          except Exception as e:
-              pass
+            try:
+                az_id = get_availability_zone_id()
+            except Exception as e:
+                pass
 
-        self.bolt_router = BoltRouter(scheme, service_url, hostname, region, az_id, update_interval=30)
-        self.events.register_last('before-send.s3', self.bolt_router.send)
+        self.bolt_router = BoltRouter(
+            scheme, service_url, hostname, region, az_id, update_interval=30
+        )
+        self.events.register_last("before-send.s3", self.bolt_router.send)
 
     def client(self, *args, **kwargs):
-        if kwargs.get('service_name') == 's3' or 's3' in args:
-            kwargs['config'] = self._merge_bolt_config(kwargs.get('config'))
+        if kwargs.get("service_name") == "s3" or "s3" in args:
+            kwargs["config"] = self._merge_bolt_config(kwargs.get("config"))
             return self._session.create_client(*args, **kwargs)
         else:
             return self._session.create_client(*args, **kwargs)
 
-    def _merge_bolt_config(self, client_config) :
+    def _merge_bolt_config(self, client_config):
         # Override client config
         bolt_config = _Config(
-            s3={
-                'addressing_style': 'path',
-                'signature_version': 's3v4'
-            }
+            s3={"addressing_style": "path", "signature_version": "s3v4"}
         )
         if client_config is not None:
             return client_config.merge(bolt_config)
         else:
             return bolt_config
+
 
 # The default Boto3 session; autoloaded when needed.
 DEFAULT_SESSION = None

@@ -14,26 +14,18 @@ The minimum supported version of Python is version 2.
 python -m pip install bolt-sdk-py2
 ```
 
-## Configuration
+## Usage
 
-For the client to work it must have knowledge of Bolt's *service discovery url* (`BOLT_URL`)
-These are parameterized by the *region* of Bolt's deployment. A preferred *availability zone ID* can also be provided for AZ-aware routing.
-
-**Expose Bolt's URL to the SDK:**
-1. Declare the ENV variable: `BOLT_CUSTOM_DOMAIN`, which constructs Bolt URL and hostname based on default naming
-```bash
-export BOLT_CUSTOM_DOMAIN="example.com"
-```
-
-
-**There are two ways to expose Bolt's region/preferred availability zone to the SDK:**
-
-If running on an EC2 instance, the SDK will use the instance's region and availability zone id, unless overriden with environment variables: `BOLT_REGION` and `BOLT_AZ_ID`
+In order to use this package, toy first need to set some environment variables
 
 ```bash
-export BOLT_REGION='<region>'
+export BOLT_CUSTOM_DOMAIN=<YOUR_CUSTOM_DOMAIN>
+export BOLT_REGION=<YOUR_BOLT_CLUSTER_REGION>
+# Optional if not running on an ec2 instance to force read from a read-replica in this az
 export BOLT_AZ_ID='<az-id>'
 ```
+
+If the region and AZ environment variables aren't specified when running on an EC2 instance, the SDK will use the ec2 metadata api to fetch the instance's region and availability zone id.
 
 ## Example usage
 
@@ -46,8 +38,12 @@ s3_client.put_object(Body="data", Bucket="BUCKET_NAME", Key="key")
 obj = s3_client.get_object(Bucket="BUCKET_NAME", Key="key")
 body = obj["Body"].read()
 ```
+
 ## Debugging
 
-Import the default logger and set its level to DEBUG
+Import the logging and set default level to `DEBUG`.
 
-`logging.getLogger().setLevel(logging.DEBUG)`
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
