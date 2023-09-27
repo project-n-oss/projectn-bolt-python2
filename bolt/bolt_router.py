@@ -42,11 +42,11 @@ def get_metadata_api_token():
       "X-aws-ec2-metadata-token-ttl-seconds": "21600"
   }
   response = http_pool.request('PUT', url, headers=headers)
-  if response.status_code == 200:
-    token = response.text
+  if response.status == 200:
+    token = response.data.decode('utf-8')
     return token
   else:
-      raise Exception("Failed to fetch token. Status code: {}".format(response.status_code))
+      raise Exception("Failed to fetch token. Status code: {}".format(response.status))
 
 
 # throws Exception on failure
@@ -54,17 +54,16 @@ def get_region():
     region = environ.get('AWS_REGION')
     if region is not None:
         return region
-    
     token = get_metadata_api_token()
     headers = {
         "X-aws-ec2-metadata-token": token
     }
     url = "{}/latest/meta-data/placement/region".format(EC2_INSTANCE_METADATA_API_BASE_URL)
-    response = http_pool.request("GET", url, headers)
-    if response.status_code == 200:
+    response = http_pool.request("GET", url, headers=headers)
+    if response.status == 200:
         return response.data.decode('utf-8')
     else:
-        raise Exception("Failed to fetch region. Status code: {}".format(response.status_code))
+        raise Exception("Failed to fetch region. Status code: {}".format(response.status))
 
 
 # throws Exception if not found
@@ -78,11 +77,11 @@ def get_availability_zone_id():
         "X-aws-ec2-metadata-token": token
     }
     url = "{}/latest/meta-data/placement/availability-zone-id".format(EC2_INSTANCE_METADATA_API_BASE_URL)
-    response = http_pool.request("GET", url, headers)
-    if response.status_code == 200:
+    response = http_pool.request("GET", url, headers=headers)
+    if response.status == 200:
         return response.data.decode('utf-8')
     else:
-        raise Exception("Failed to fetch availability zone id. Status code: {}".format(response.status_code))
+        raise Exception("Failed to fetch availability zone id. Status code: {}".format(response.status))
 
 
 def _default_get(url):
@@ -275,7 +274,7 @@ class BoltRouter:
         prepared_request.headers['X-Bolt-Auth-Prefix'] = self._prefix
 
         try: 
-          bolt_response =  BoltSession(self._hostname, verify=ssl_verify).send(prepared_request)
+          bolt_response =  BoltSession(self._hostname).send(prepared_request)
           if 400 <= bolt_response.status_code < 500:
               logger.info("bolt request failed - 4xx - falling back to aws", extra={"status_code": bolt_response.status_code})
               return URLLib3Session().send(incoming_request)
