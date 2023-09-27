@@ -20,10 +20,6 @@ jobs:
       image: python:2.7.18-buster
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 2.7.18
       - name: Install dependencies
         run: |
           curl https://bootstrap.pypa.io/pip/2.7/get-pip.py -o get-pip.py
