@@ -51,5 +51,3 @@ body = obj["Body"].read()
 Import the default logger and set its level to DEBUG
 
 `logging.getLogger().setLevel(logging.DEBUG)`
-
-
