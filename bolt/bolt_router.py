@@ -2,15 +2,18 @@ from collections import defaultdict
 import json
 from os import environ
 from random import choice
-from urllib3 import PoolManager
 from threading import Lock
 
+import copy
 import random
 import sys 
 import sched
 import time
 import datetime
 import string
+import requests
+import urllib3
+from urllib3.util.retry import Retry
 from functools import wraps
 from threading import Thread
 from urlparse import urlsplit
@@ -22,13 +25,46 @@ from botocore.exceptions import UnknownEndpointError
 from botocore.session import get_session
 from botocore.httpsession import URLLib3Session
 
-# throws Exception if not found
+EC2_INSTANCE_METADATA_API_BASE_URL = "http://169.254.169.254"
+
+http_pool = urllib3.PoolManager(
+    retries=Retry(
+        total=5,  # Total number of retries
+        backoff_factor=0.1,  # Time to sleep between retries (0.1s, 0.2s, 0.4s, ...)
+    )
+)
+
+
+# throws Exception on failure
+def get_metadata_api_token():
+  url = "{}/latest/api/token".format(EC2_INSTANCE_METADATA_API_BASE_URL)
+  headers = {
+      "X-aws-ec2-metadata-token-ttl-seconds": "21600"
+  }
+  response = http_pool.request('PUT', url, headers=headers)
+  if response.status == 200:
+    token = response.data.decode('utf-8')
+    return token
+  else:
+      raise Exception("Failed to fetch token. Status code: {}".format(response.status))
+
+
+# throws Exception on failure
 def get_region():
     region = environ.get('AWS_REGION')
     if region is not None:
         return region
-    
-    return _default_get('http://169.254.169.254/latest/meta-data/placement/region')
+    token = get_metadata_api_token()
+    headers = {
+        "X-aws-ec2-metadata-token": token
+    }
+    url = "{}/latest/meta-data/placement/region".format(EC2_INSTANCE_METADATA_API_BASE_URL)
+    response = http_pool.request("GET", url, headers=headers)
+    if response.status == 200:
+        return response.data.decode('utf-8')
+    else:
+        raise Exception("Failed to fetch region. Status code: {}".format(response.status))
+
 
 # throws Exception if not found
 def get_availability_zone_id():
@@ -36,13 +72,21 @@ def get_availability_zone_id():
     if zone is not None:
         return zone
     
-    return _default_get('http://169.254.169.254/latest/meta-data/placement/availability-zone-id')
+    token = get_metadata_api_token()
+    headers = {
+        "X-aws-ec2-metadata-token": token
+    }
+    url = "{}/latest/meta-data/placement/availability-zone-id".format(EC2_INSTANCE_METADATA_API_BASE_URL)
+    response = http_pool.request("GET", url, headers=headers)
+    if response.status == 200:
+        return response.data.decode('utf-8')
+    else:
+        raise Exception("Failed to fetch availability zone id. Status code: {}".format(response.status))
 
 
 def _default_get(url):
     try:
-        http = PoolManager(timeout=3.0)
-        resp = http.request('GET', url, retries=2)
+        resp = http_pool.request('GET', url, retries=2)
         return resp.data.decode('utf-8')
     except Exception as e:
         raise e
@@ -100,9 +144,10 @@ class BoltSession(URLLib3Session):
             if key == "Expect":
                 continue
             request.headers[key] = request.headers[key]
+
         return super(BoltSession, self).send(request)
 
-
+        
 def roundTime(dt=None, dateDelta=datetime.timedelta(minutes=1)):
     """Round a datetime object to a multiple of a timedelta
     dt : datetime.datetime object, default now.
@@ -198,6 +243,7 @@ class BoltRouter:
     def send(self, *args, **kwargs):
         # Dispatches to the configured Bolt scheme and host.
         prepared_request = kwargs['request']
+        incoming_request = copy.deepcopy(prepared_request)
         _, _, path, query, fragment = urlsplit(prepared_request.url)
         host = self._select_endpoint(prepared_request.method)
         if self._scheme == "http":
@@ -220,8 +266,6 @@ class BoltRouter:
         # content, it's just the SHA of an empty string and it's always the value below.
         # https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
         request.headers['X-Amz-Content-Sha256'] = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-
-
         self._auth.add_auth(request)
 
         for key in ["X-Amz-Date", "Authorization", "X-Amz-Security-Token", "X-Amz-Content-Sha256"]:
@@ -229,10 +273,15 @@ class BoltRouter:
             prepared_request.headers[key] = request.headers[key]
         prepared_request.headers['X-Bolt-Auth-Prefix'] = self._prefix
 
-        # send this request with our custom session options
-        # if an AWSResponse is returned directly from a `before-send` event handler function, 
-        # botocore will use that as the response without making its own request.
-        return BoltSession(self._hostname).send(prepared_request)
+        try: 
+          bolt_response =  BoltSession(self._hostname).send(prepared_request)
+          if 400 <= bolt_response.status_code < 500:
+              logger.debug("bolt request failed - 4xx - falling back to aws", extra={"status_code": bolt_response.status_code})
+              return URLLib3Session().send(incoming_request)
+          return bolt_response
+        except Exception as e:
+          logger.debug("bolt request failed - exception - falling back to aws", extra={"exception": e})
+          return URLLib3Session().send(incoming_request)
 
     def _get_endpoints(self):
         try:
@@ -254,4 +303,3 @@ class BoltRouter:
                     return choice(self._bolt_endpoints[endpoints])
         # if we reach this point, no endpoints are available
         raise UnknownEndpointError(service_name='bolt', region_name=self._az_id)
-

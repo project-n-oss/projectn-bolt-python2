@@ -10,6 +10,7 @@
 # language governing permissions and limitations under the License.
 
 import json
+import sys
 
 from collections import defaultdict
 from os import environ as _environ
@@ -37,14 +38,15 @@ class Session(_Session):
             try:
                 region = get_region()
             except Exception as e:
-                pass
+                print("BOLT_REGION environment variable is not set, and could not be automatically determined.")
+                sys.exit(1)
+
         custom_domain = _environ.get('BOLT_CUSTOM_DOMAIN')
         service_url = _environ.get('BOLT_URL')
-        bolt_hostname = _environ.get('BOLT_HOSTNAME')
         hostname = None
 
         if custom_domain is not None and region is not None:
-            scheme = 'https' 
+            scheme = 'https'
             service_url = "quicksilver.{}.{}".format(region, custom_domain)
             hostname = "bolt.{}.{}".format(region, custom_domain)
         elif service_url is not None:
@@ -58,11 +60,12 @@ class Session(_Session):
             raise ValueError(
                 'Bolt settings could not be found.\nPlease expose 1. BOLT_URL or 2. BOLT_CUSTOM_DOMAIN')
 
-        az_id = None
-        try:
-            az_id = get_availability_zone_id()
-        except Exception as e:
-            pass
+        az_id = _environ.get('BOLT_AZ_ID')
+        if az_id is None:
+          try:
+              az_id = get_availability_zone_id()
+          except Exception as e:
+              pass
 
         self.bolt_router = BoltRouter(scheme, service_url, hostname, region, az_id, update_interval=30)
         self.events.register_last('before-send.s3', self.bolt_router.send)
@@ -130,5 +133,3 @@ def resource(*args, **kwargs):
     See :py:meth:`boto3.session.Session.resource`.
     """
     return _get_default_session().resource(*args, **kwargs)
-
-

@@ -28,12 +28,13 @@ export BOLT_CUSTOM_DOMAIN="example.com"
 
 **There are two ways to expose Bolt's region/preferred availability zone to the SDK:**
 
-1. If running on an EC2 instance the SDK will by default use that instance's region and zone ID
-2. With the ENV variables: `AWS_REGION` and `AWS_ZONE_ID`.
+If running on an EC2 instance, the SDK will use the instance's region and availability zone id, unless overriden with environment variables: `BOLT_REGION` and `BOLT_AZ_ID`
+
 ```bash
-export AWS_REGION='<region>'
-export AWS_ZONE_ID='<az-id>'
+export BOLT_REGION='<region>'
+export BOLT_AZ_ID='<az-id>'
 ```
+
 ## Example usage
 
 ```python
@@ -50,5 +51,3 @@ body = obj["Body"].read()
 Import the default logger and set its level to DEBUG
 
 `logging.getLogger().setLevel(logging.DEBUG)`
-
-
