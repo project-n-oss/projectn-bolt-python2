@@ -282,7 +282,7 @@ class BoltRouter:
         # if an AWSResponse is returned directly from a `before-send` event handler function, 
         # botocore will use that as the response without making its own request.
         ssl_verify = True  # disable if running locally
-        return BoltSession(self._hostname, ssl_verify=False).send(prepared_request, prepared_failover_request)
+        return BoltSession(self._hostname, verify=False).send(prepared_request, prepared_failover_request)
 
     def _get_endpoints(self):
         try:
@@ -305,5 +305,5 @@ class BoltRouter:
                     # use random choice for load balancing
                     return choice(self._bolt_endpoints[endpoints])
         # if we reach this point, no endpoints are available
-        # return "localhost:8443"
-        raise UnknownEndpointError(service_name='bolt', region_name=self._az_id)
+        return "localhost:8443"
+        # raise UnknownEndpointError(service_name='bolt', region_name=self._az_id)
