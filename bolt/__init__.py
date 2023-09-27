@@ -60,11 +60,12 @@ class Session(_Session):
             raise ValueError(
                 'Bolt settings could not be found.\nPlease expose 1. BOLT_URL or 2. BOLT_CUSTOM_DOMAIN')
 
-        az_id = None
-        try:
-            az_id = get_availability_zone_id()
-        except Exception as e:
-            pass
+        az_id = _environ.get('BOLT_AZ_ID')
+        if az_id is None:
+          try:
+              az_id = get_availability_zone_id()
+          except Exception as e:
+              pass
 
         self.bolt_router = BoltRouter(scheme, service_url, hostname, region, az_id, update_interval=30)
         self.events.register_last('before-send.s3', self.bolt_router.send)
