@@ -255,10 +255,10 @@ class BoltRouter:
         print("path without bucket: ", path_without_bucket)
 
         # virtual hosted style
-        # new_url =  "https://{}.s3.{}.amazonaws.com/{}".format(source_bucket, self._region, path_without_bucket)
+        new_url =  "https://{}.s3.{}.amazonaws.com/{}".format(source_bucket, self._region, path_without_bucket)
 
         # pathstyle
-        new_url = "https://s3.{}.amazonaws.com{}".format(self._region, path)
+        # new_url = "https://s3.{}.amazonaws.com{}".format(self._region, path)
 
         print("new url: ", new_url)
         failover_request = AWSRequest(
@@ -305,5 +305,5 @@ class BoltRouter:
                     # use random choice for load balancing
                     return choice(self._bolt_endpoints[endpoints])
         # if we reach this point, no endpoints are available
-        return "localhost:8443"
-        # raise UnknownEndpointError(service_name='bolt', region_name=self._az_id)
+        # return "localhost:8443"
+        raise UnknownEndpointError(service_name='bolt', region_name=self._az_id)
