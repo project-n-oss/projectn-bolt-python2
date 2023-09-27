@@ -2,7 +2,6 @@ from collections import defaultdict
 import json
 from os import environ
 from random import choice
-from urllib3 import PoolManager
 from threading import Lock
 
 import copy
@@ -12,6 +11,9 @@ import sched
 import time
 import datetime
 import string
+import requests
+import urllib3
+from urllib3.util.retry import Retry
 from functools import wraps
 from threading import Thread
 from urlparse import urlsplit
@@ -23,14 +25,47 @@ from botocore.exceptions import UnknownEndpointError
 from botocore.session import get_session
 from botocore.httpsession import URLLib3Session
 
+EC2_INSTANCE_METADATA_API_BASE_URL = "http://169.254.169.254"
 
-# throws Exception if not found
+http_pool = urllib3.PoolManager(
+    retries=Retry(
+        total=5,  # Total number of retries
+        backoff_factor=0.1,  # Time to sleep between retries (0.1s, 0.2s, 0.4s, ...)
+    )
+)
+
+
+# throws Exception on failure
+def get_metadata_api_token():
+  url = "{}/latest/api/token".format(EC2_INSTANCE_METADATA_API_BASE_URL)
+  headers = {
+      "X-aws-ec2-metadata-token-ttl-seconds": "21600"
+  }
+  response = http_pool.request('PUT', url, headers=headers)
+  if response.status_code == 200:
+    token = response.text
+    return token
+  else:
+      raise Exception("Failed to fetch token. Status code: {}".format(response.status_code))
+
+
+# throws Exception on failure
 def get_region():
     region = environ.get('AWS_REGION')
     if region is not None:
         return region
     
-    return _default_get('http://169.254.169.254/latest/meta-data/placement/region')
+    token = get_metadata_api_token()
+    headers = {
+        "X-aws-ec2-metadata-token": token
+    }
+    url = "{}/latest/meta-data/placement/region".format(EC2_INSTANCE_METADATA_API_BASE_URL)
+    response = http_pool.request("GET", url, headers)
+    if response.status_code == 200:
+        return response.data.decode('utf-8')
+    else:
+        raise Exception("Failed to fetch region. Status code: {}".format(response.status_code))
+
 
 # throws Exception if not found
 def get_availability_zone_id():
@@ -38,13 +73,21 @@ def get_availability_zone_id():
     if zone is not None:
         return zone
     
-    return _default_get('http://169.254.169.254/latest/meta-data/placement/availability-zone-id')
+    token = get_metadata_api_token()
+    headers = {
+        "X-aws-ec2-metadata-token": token
+    }
+    url = "{}/latest/meta-data/placement/availability-zone-id".format(EC2_INSTANCE_METADATA_API_BASE_URL)
+    response = http_pool.request("GET", url, headers)
+    if response.status_code == 200:
+        return response.data.decode('utf-8')
+    else:
+        raise Exception("Failed to fetch availability zone id. Status code: {}".format(response.status_code))
 
 
 def _default_get(url):
     try:
-        http = PoolManager(timeout=3.0)
-        resp = http.request('GET', url, retries=2)
+        resp = http_pool.request('GET', url, retries=2)
         return resp.data.decode('utf-8')
     except Exception as e:
         raise e
