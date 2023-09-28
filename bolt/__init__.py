@@ -10,7 +10,7 @@
 # language governing permissions and limitations under the License.
 
 import sys
-from os import environ as _environ
+from os import environ
 
 from boto3 import Session as _Session
 from botocore.config import Config as _Config
@@ -27,7 +27,7 @@ class Session(_Session):
         super(Session, self).__init__()
 
         # Load all of the possibly configuration settings
-        region = _environ.get("BOLT_REGION")
+        region = environ.get("BOLT_REGION")
         if region is None:
             try:
                 region = get_region()
@@ -37,8 +37,8 @@ class Session(_Session):
                 )
                 sys.exit(1)
 
-        custom_domain = _environ.get("BOLT_CUSTOM_DOMAIN")
-        service_url = _environ.get("BOLT_URL")
+        custom_domain = environ.get("BOLT_CUSTOM_DOMAIN")
+        service_url = environ.get("BOLT_URL")
         hostname = None
 
         if custom_domain is not None and region is not None:
@@ -61,7 +61,7 @@ class Session(_Session):
                 "Bolt settings could not be found.\nPlease expose 1. BOLT_URL or 2. BOLT_CUSTOM_DOMAIN"
             )
 
-        az_id = _environ.get("BOLT_AZ_ID")
+        az_id = environ.get("BOLT_AZ_ID")
         if az_id is None:
             try:
                 az_id = get_availability_zone_id()
