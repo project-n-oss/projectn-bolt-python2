@@ -13,7 +13,7 @@ import sys
 from os import environ
 
 from boto3 import Session as Boto3Session
-from botocore.config import Config as Boto3Config
+from botocore.config import Config as BotoCoreConfig
 from urlparse import urlsplit
 
 from .bolt_router import BoltRouter, get_availability_zone_id, get_region
@@ -87,7 +87,7 @@ class Session(Boto3Session):
 
     def _merge_bolt_config(self, client_config):
         # Override client config
-        bolt_config = Boto3Config(
+        bolt_config = BotoCoreConfig(
             s3={"addressing_style": "path", "signature_version": "s3v4"}
         )
         if client_config is not None:
