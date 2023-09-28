@@ -9,32 +9,25 @@
 # ANY KIND, either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
-import json
 import sys
+from os import environ
 
-from collections import defaultdict
-from os import environ as _environ
-from random import choice
-from threading import Lock
-import urllib3
-from boto3 import Session as _Session
-from botocore.auth import SigV4Auth as _SigV4Auth
-from botocore.awsrequest import AWSRequest as _AWSRequest
-from botocore.config import Config as _Config
-from botocore.exceptions import UnknownEndpointError
+from boto3 import Session as Boto3Session
+from botocore.config import Config as BotoCoreConfig
 from urlparse import urlsplit
-from urlparse import urlunsplit
 
-from .bolt_router import BoltRouter, get_region, get_availability_zone_id
+from .bolt_router import BoltRouter, get_availability_zone_id, get_region
+
+BOLT_ENDPOINT_UPDATE_INTERVAL = 10
 
 
 # Override Session Class
-class Session(_Session):
+class Session(Boto3Session):
     def __init__(self):
         super(Session, self).__init__()
 
         # Load all of the possibly configuration settings
-        region = _environ.get("BOLT_REGION")
+        region = environ.get("BOLT_REGION")
         if region is None:
             try:
                 region = get_region()
@@ -44,8 +37,8 @@ class Session(_Session):
                 )
                 sys.exit(1)
 
-        custom_domain = _environ.get("BOLT_CUSTOM_DOMAIN")
-        service_url = _environ.get("BOLT_URL")
+        custom_domain = environ.get("BOLT_CUSTOM_DOMAIN")
+        service_url = environ.get("BOLT_URL")
         hostname = None
 
         if custom_domain is not None and region is not None:
@@ -68,7 +61,7 @@ class Session(_Session):
                 "Bolt settings could not be found.\nPlease expose 1. BOLT_URL or 2. BOLT_CUSTOM_DOMAIN"
             )
 
-        az_id = _environ.get("BOLT_AZ_ID")
+        az_id = environ.get("BOLT_AZ_ID")
         if az_id is None:
             try:
                 az_id = get_availability_zone_id()
@@ -76,7 +69,12 @@ class Session(_Session):
                 pass
 
         self.bolt_router = BoltRouter(
-            scheme, service_url, hostname, region, az_id, update_interval=30
+            scheme=scheme,
+            quicksilver_api_base_url=service_url,
+            hostname=hostname,
+            region=region,
+            az_id=az_id,
+            update_interval=BOLT_ENDPOINT_UPDATE_INTERVAL,
         )
         self.events.register_last("before-send.s3", self.bolt_router.send)
 
@@ -89,7 +87,7 @@ class Session(_Session):
 
     def _merge_bolt_config(self, client_config):
         # Override client config
-        bolt_config = _Config(
+        bolt_config = BotoCoreConfig(
             s3={"addressing_style": "path", "signature_version": "s3v4"}
         )
         if client_config is not None:

@@ -1,29 +1,25 @@
-from collections import defaultdict
+import copy
+import datetime
 import json
+import random
+import sched
+import string
+import sys
+import time
+from collections import defaultdict
+from functools import wraps
 from os import environ
 from random import choice
-from threading import Lock
+from threading import Lock, Thread
 
-import copy
-import random
-import sys
-import sched
-import time
-import datetime
-import string
-import requests
 import urllib3
-from urllib3.util.retry import Retry
-from functools import wraps
-from threading import Thread
-from urlparse import urlsplit
-from urlparse import urlunsplit
-
-from botocore.auth import SigV4Auth, SIGV4_TIMESTAMP, logger
+from botocore.auth import SIGV4_TIMESTAMP, SigV4Auth, logger
 from botocore.awsrequest import AWSRequest
 from botocore.exceptions import UnknownEndpointError
-from botocore.session import get_session
 from botocore.httpsession import URLLib3Session
+from botocore.session import get_session
+from urllib3.util.retry import Retry
+from urlparse import urlsplit, urlunsplit
 
 EC2_INSTANCE_METADATA_API_BASE_URL = "http://169.254.169.254"
 
@@ -88,14 +84,6 @@ def get_availability_zone_id():
                 response.status
             )
         )
-
-
-def _default_get(url):
-    try:
-        resp = http_pool.request('GET', url, retries=2)
-        return resp.data.decode('utf-8')
-    except Exception as e:
-        raise e
 
 
 def async_function(func):
@@ -239,17 +227,33 @@ class BoltRouter:
     )
 
     def __init__(
-        self, scheme, service_url, hostname, region, az_id, update_interval=-1
+        self,
+        scheme,
+        quicksilver_api_base_url,
+        hostname,
+        region,
+        az_id,
+        update_interval=-1,
     ):
         # The scheme (parsed at bootstrap from the AWS config).
         self._scheme = scheme
         # The service discovery host (parsed at bootstrap from the AWS config).
-        self._service_url = service_url
+        self._quicksilver_api_base_url = quicksilver_api_base_url
         # the hostname to use for SSL validation when connecting directly to Bolt IPs
         self._hostname = hostname
         # Availability zone ID to use (may be none)
         self._az_id = az_id
         self._region = region
+
+        if self._az_id is None:
+            # None obj formats as "None" into the string so let's not include it if it's None
+            self._quicksilver_url = '{}/services/bolt'.format(
+                self._quicksilver_api_base_url
+            )
+        else:
+            self._quicksilver_url = '{}/services/bolt?az={}'.format(
+                self._quicksilver_api_base_url, self._az_id
+            )
 
         # Map of Bolt endpoints to use for connections, and mutex protecting it
         self._bolt_endpoints = defaultdict(list)
@@ -346,13 +350,12 @@ class BoltRouter:
 
     def _get_endpoints(self):
         try:
-            service_url = '{}/services/bolt?az={}'.format(
-                self._service_url, self._az_id
-            )
-            resp = _default_get(service_url)
-            endpoint_map = json.loads(resp)
-            with self._mutex:
-                self._bolt_endpoints = defaultdict(list, endpoint_map)
+            response = http_pool.request('GET', self._quicksilver_url)
+            if response.status == 200:
+                response_data = response.data.decode('utf-8')
+                endpoint_map = json.loads(response_data)
+                with self._mutex:
+                    self._bolt_endpoints = defaultdict(list, endpoint_map)
         except Exception as e:
             raise e
 
