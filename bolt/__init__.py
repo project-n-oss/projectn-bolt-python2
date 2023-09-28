@@ -18,6 +18,8 @@ from urlparse import urlsplit
 
 from .bolt_router import BoltRouter, get_availability_zone_id, get_region
 
+BOLT_ENDPOINT_UPDATE_INTERVAL = 10
+
 
 # Override Session Class
 class Session(_Session):
@@ -67,7 +69,12 @@ class Session(_Session):
                 pass
 
         self.bolt_router = BoltRouter(
-            scheme, service_url, hostname, region, az_id, update_interval=30
+            scheme=scheme,
+            quicksilver_api_base_url=service_url,
+            hostname=hostname,
+            region=region,
+            az_id=az_id,
+            update_interval=BOLT_ENDPOINT_UPDATE_INTERVAL,
         )
         self.events.register_last("before-send.s3", self.bolt_router.send)
 
