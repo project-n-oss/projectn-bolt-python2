@@ -86,14 +86,6 @@ def get_availability_zone_id():
         )
 
 
-def _default_get(url):
-    try:
-        resp = http_pool.request('GET', url, retries=2)
-        return resp.data.decode('utf-8')
-    except Exception as e:
-        raise e
-
-
 def async_function(func):
     @wraps(func)
     def async_func(*args, **kwargs):
