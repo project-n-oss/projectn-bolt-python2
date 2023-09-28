@@ -1,29 +1,25 @@
-from collections import defaultdict
+import copy
+import datetime
 import json
+import random
+import sched
+import string
+import sys
+import time
+from collections import defaultdict
+from functools import wraps
 from os import environ
 from random import choice
-from threading import Lock
+from threading import Lock, Thread
 
-import copy
-import random
-import sys
-import sched
-import time
-import datetime
-import string
-import requests
 import urllib3
-from urllib3.util.retry import Retry
-from functools import wraps
-from threading import Thread
-from urlparse import urlsplit
-from urlparse import urlunsplit
-
-from botocore.auth import SigV4Auth, SIGV4_TIMESTAMP, logger
+from botocore.auth import SIGV4_TIMESTAMP, SigV4Auth, logger
 from botocore.awsrequest import AWSRequest
 from botocore.exceptions import UnknownEndpointError
-from botocore.session import get_session
 from botocore.httpsession import URLLib3Session
+from botocore.session import get_session
+from urllib3.util.retry import Retry
+from urlparse import urlsplit, urlunsplit
 
 EC2_INSTANCE_METADATA_API_BASE_URL = "http://169.254.169.254"
 

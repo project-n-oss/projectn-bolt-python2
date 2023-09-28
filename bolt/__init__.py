@@ -9,23 +9,14 @@
 # ANY KIND, either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
-import json
 import sys
-
-from collections import defaultdict
 from os import environ as _environ
-from random import choice
-from threading import Lock
-import urllib3
-from boto3 import Session as _Session
-from botocore.auth import SigV4Auth as _SigV4Auth
-from botocore.awsrequest import AWSRequest as _AWSRequest
-from botocore.config import Config as _Config
-from botocore.exceptions import UnknownEndpointError
-from urlparse import urlsplit
-from urlparse import urlunsplit
 
-from .bolt_router import BoltRouter, get_region, get_availability_zone_id
+from boto3 import Session as _Session
+from botocore.config import Config as _Config
+from urlparse import urlsplit
+
+from .bolt_router import BoltRouter, get_availability_zone_id, get_region
 
 
 # Override Session Class
