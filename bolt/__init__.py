@@ -12,8 +12,8 @@
 import sys
 from os import environ
 
-from boto3 import Session as _Session
-from botocore.config import Config as _Config
+from boto3 import Session as Boto3Session
+from botocore.config import Config as Boto3Config
 from urlparse import urlsplit
 
 from .bolt_router import BoltRouter, get_availability_zone_id, get_region
@@ -22,7 +22,7 @@ BOLT_ENDPOINT_UPDATE_INTERVAL = 10
 
 
 # Override Session Class
-class Session(_Session):
+class Session(Boto3Session):
     def __init__(self):
         super(Session, self).__init__()
 
@@ -87,7 +87,7 @@ class Session(_Session):
 
     def _merge_bolt_config(self, client_config):
         # Override client config
-        bolt_config = _Config(
+        bolt_config = Boto3Config(
             s3={"addressing_style": "path", "signature_version": "s3v4"}
         )
         if client_config is not None:
