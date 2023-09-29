@@ -43,7 +43,7 @@ class Session(Boto3Session):
 
         if custom_domain is not None and region is not None:
             scheme = "https"
-            service_url = "quicksilver.{}.{}".format(region, custom_domain)
+            service_url = "{}://quicksilver.{}.{}".format(scheme, region, custom_domain)
             hostname = "bolt.{}.{}".format(region, custom_domain)
         elif service_url is not None:
             scheme, service_url, _, _, _ = urlsplit(service_url)
