@@ -27,7 +27,8 @@ http_pool = urllib3.PoolManager(
     retries=Retry(
         total=5,  # Total number of retries
         backoff_factor=0.1,  # Time to sleep between retries (0.1s, 0.2s, 0.4s, ...)
-    )
+    ),
+    timeout=urllib3.Timeout(total=1.0)
 )
 
 
